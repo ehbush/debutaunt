@@ -9,6 +9,7 @@ Debutaunt is a bash script created to make debian-based updates & upgrades quick
 **The requirements I set out for myself were:**
 * Create a Bash Script that performs the update & upgrades I perform most frequently
 * Ensure the script will work on all flavours of Debian-based distros that I run in my home lab
+* Add a dietpi flag to the script for my many dietpi based Pi's
 * Allow the script to accept user-input at run-time
 * Host it in GitHub for the many reasons that GitHub is awesome. Tracking changes, allow others to fork/contribute/criticise :), + GitHub being an easy place to pull from on fresh Linux installs (virtual machines/Pi's, etc.).
  
