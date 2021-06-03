@@ -5,28 +5,14 @@
 # https://github.com/ehbush/debutaunt
 # Created by Anthony C. Bush in 2021 for Personal / Home Use
 
-# Defining Text Colours - setaf: Set ANSI Foreground....
-fblack=$( tput setaf 0);
-fred=$( tput setaf 1 );
-fgreen=$( tput setaf 2 );
-fyellow=$( tput setaf 3 );
-fblue=$( tput sgr 4 );
-fmagenta=$( tput sgr 5 );
-fcyan=$( tput sgr 6 );
-fwhite=$( tput sgr 7 );
+# Defining Colours
 
-# Foreground/Background Agnostic
-reset=$( tput sgr0 );
-
-# Defining Background Colours - setab: Set ANSI Background....
-bblack=$( tput setab 0);
-bred=$( tput setab 1 );
-bgreen=$( tput setab 2 );
-byellow=$( tput setab 3 );
-bblue=$( tput setab 4 );
-bmagenta=$( tput setab 5 );
-bcyan=$( tput setab 6 );
-bwhite=$( tput setab 7 );
+bold="\e[1m"
+inv="\e[7"
+red="\e[31m"
+green="\e[32m"
+yellow="\e[33m"
+reset="\e[0m"
 
 # Script Intro
 INTRO="
@@ -83,7 +69,7 @@ fi
 
 # Display Script Intro
 
-echo "\e[40;38;5;82m Hello \e[30;48;5;82m World \e[0m"$INTRO${reset}"
+echo "${bold} ${green}$INTRO${reset}"
 
 if [[ ! -n $uOff ]]; then
     echo -e "
