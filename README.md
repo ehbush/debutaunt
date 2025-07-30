@@ -35,7 +35,7 @@ Works seamlessly across the three major Linux distribution families:
 | **Arch-based** | `pacman` | `/etc/arch-release` |
 
 ### 🎮 **Interactive Mode**
-Run without options and get a beautiful interactive menu:
+Run without options and get a beautiful interactive menu with **multi-operation support**:
 ```
 === DebUtAUnT Interactive Menu ===
 What would you like to do today?
@@ -51,6 +51,10 @@ System: Debian-based with apt-get
 8) Custom selection
 9) Show help
 0) Exit
+
+# After completing operations, you can perform more without restarting!
+Would you like to perform more operations? (y/n): y
+Alright, let's do more!
 ```
 
 ### 🛡️ **Safety & Backup Features**
@@ -116,6 +120,16 @@ sudo bash debutaunt.sh
 ```bash
 # Start the interactive menu
 sudo bash debutaunt.sh
+
+# Multi-operation workflow example:
+# 1. Choose "Update package lists"
+# 2. After completion, choose "y" to continue
+# 3. Choose "Upgrade packages" 
+# 4. After completion, choose "y" to continue
+# 5. Choose "Clean up packages"
+# 6. Choose "n" to exit
+# 
+# All operations in one session without restarting!
 ```
 
 ### Automation Examples
@@ -274,12 +288,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🌟 Why Choose DebUtAUnT?
 
 1. **Cross-Distribution**: Works on Debian, Red Hat, and Arch based systems
-2. **Interactive**: User-friendly menu system for easy operation selection
+2. **Interactive**: User-friendly menu system with multi-operation support
 3. **Safe**: Comprehensive backup and error handling
 4. **Fun**: Maintains personality while being professional
 5. **Flexible**: Both interactive and command-line modes
 6. **Comprehensive**: Detailed logging and analysis
 7. **Automation-Ready**: Perfect for scripts and cron jobs
+8. **Session Persistent**: Perform multiple operations without restarting
 
 ---
 
