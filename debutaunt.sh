@@ -555,37 +555,14 @@ ${FGREEN}#############################
 "
 }
 
-# Main execution function
-main() {
-    # Initialize
-    [[ $QUIET -eq 0 ]] && echo -e "$INTRO"
-    
-    # Check prerequisites
-    check_root
-    
-    # Detect distribution and package manager
-    detect_distribution
-    
-    # Get package manager commands
-    get_package_commands
-    
-    # Handle interactive mode
-    if [[ $INTERACTIVE -eq 1 ]]; then
-        while true; do
-            show_interactive_menu
-            local choice=$(get_user_selection)
-            if process_interactive_selection "$choice"; then
-                break
-            fi
-        done
-    fi
-    
+# Execute selected operations
+execute_operations() {
     # Create backup if requested
     [[ $CREATE_BACKUP -eq 1 ]] && create_backup
     
     # Show log file location
     log "INFO" "Log file: $LOG_FILE"
-    [[ $LOG_ONLY -eq 1 ]] && exit 0
+    [[ $LOG_ONLY -eq 1 ]] && return 0
     
     # Initialize output file
     > "$TEMP_OUTPUT"
@@ -649,6 +626,62 @@ ${FGREEN}#########################################################
 # Why you ain't choose any options tho? You tryna start beef? Nvm, you ain't even worth it...Exiting. #
 #########################################################${RESET}
 "
+    fi
+}
+
+# Reset operation flags for next run
+reset_operation_flags() {
+    SKIP_UPDATE=0
+    SKIP_UPGRADE=0
+    SKIP_DIST=0
+    SKIP_AUTOREMOVE=0
+    SKIP_AUTOCLEAN=0
+    CREATE_BACKUP=0
+    ERROR_COUNT=0
+    WARNING_COUNT=0
+}
+
+# Main execution function
+main() {
+    # Initialize
+    [[ $QUIET -eq 0 ]] && echo -e "$INTRO"
+    
+    # Check prerequisites
+    check_root
+    
+    # Detect distribution and package manager
+    detect_distribution
+    
+    # Get package manager commands
+    get_package_commands
+    
+    # Handle interactive mode
+    if [[ $INTERACTIVE -eq 1 ]]; then
+        while true; do
+            show_interactive_menu
+            local choice=$(get_user_selection)
+            if process_interactive_selection "$choice"; then
+                # Execute the selected operations
+                execute_operations
+                
+                # Ask if user wants to continue
+                echo -e "\n${FCYAN}Would you like to perform more operations? (y/n): ${RESET}"
+                read -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    # Reset flags for next operation
+                    reset_operation_flags
+                    echo -e "${FGREEN}Alright, let's do more!${RESET}\n"
+                    continue
+                else
+                    echo -e "${FYELLOW}Thanks for using DebUtAUnT! See you next time!${RESET}"
+                    break
+                fi
+            fi
+        done
+    else
+        # Non-interactive mode - execute operations once
+        execute_operations
     fi
     
     # Cleanup
