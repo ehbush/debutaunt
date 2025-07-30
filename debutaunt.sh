@@ -10,7 +10,7 @@ set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
 # Script configuration
 SCRIPT_NAME="debutaunt.sh"
-SCRIPT_VERSION="2.0.0"
+SCRIPT_VERSION="3.1.3"
 LOG_FILE="/tmp/debutaunt-$(date +%Y%m%d-%H%M%S).log"
 TEMP_OUTPUT="/tmp/debutaunt-output.txt"
 BACKUP_DIR="/var/backups/debutaunt"
