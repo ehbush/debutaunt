@@ -47,12 +47,16 @@ ${FYELLOW}Features:${RESET}
 • Error detection and reporting
 • Comprehensive logging
 • Backup creation before major changes
+• Interactive mode for easy selection
 
 ${FMAGENTA}https://github.com/ehbush/debutaunt${RESET}
 "
 
 readonly USAGE="
 ${FGREEN}Usage:${RESET} sudo bash ${SCRIPT_NAME} [OPTIONS]
+
+${FYELLOW}Interactive Mode:${RESET}
+  Run without options for interactive menu
 
 ${FYELLOW}Options:${RESET}
   -u, --skip-update      Skip apt-get update
@@ -64,11 +68,13 @@ ${FYELLOW}Options:${RESET}
   -l, --log-only         Only show log file location
   -v, --verbose          Verbose output
   -q, --quiet            Quiet mode (minimal output)
+  -a, --auto             Run all operations automatically (non-interactive)
   -h, --help             Display this help message
   --version              Show version information
 
 ${FYELLOW}Examples:${RESET}
-  sudo bash ${SCRIPT_NAME}              # Run all operations
+  sudo bash ${SCRIPT_NAME}              # Interactive mode
+  sudo bash ${SCRIPT_NAME} --auto       # Run everything automatically
   sudo bash ${SCRIPT_NAME} -u -g        # Skip update and upgrade
   sudo bash ${SCRIPT_NAME} -b -v        # Create backup with verbose output
   sudo bash ${SCRIPT_NAME} --quiet      # Quiet mode for automation
@@ -86,8 +92,159 @@ CREATE_BACKUP=0
 LOG_ONLY=0
 VERBOSE=0
 QUIET=0
+AUTO_MODE=0
+INTERACTIVE=0
 ERROR_COUNT=0
 WARNING_COUNT=0
+
+# Interactive menu function
+show_interactive_menu() {
+    echo -e "${BBLUE}${FWHITE} === DebUtAUnT Interactive Menu === ${RESET}"
+    echo -e "${FCYAN}What would you like to do today?${RESET}"
+    echo ""
+    echo -e "${FYELLOW}1)${RESET} Update package lists (apt-get update)"
+    echo -e "${FYELLOW}2)${RESET} Upgrade packages (apt-get upgrade)"
+    echo -e "${FYELLOW}3)${RESET} Distribution upgrade (apt-get dist-upgrade)"
+    echo -e "${FYELLOW}4)${RESET} Clean up packages (apt-get autoremove)"
+    echo -e "${FYELLOW}5)${RESET} Clean package cache (apt-get autoclean)"
+    echo -e "${FYELLOW}6)${RESET} Create system backup before upgrades"
+    echo -e "${FYELLOW}7)${RESET} Run everything (recommended)"
+    echo -e "${FYELLOW}8)${RESET} Custom selection"
+    echo -e "${FYELLOW}9)${RESET} Show help"
+    echo -e "${FYELLOW}0)${RESET} Exit"
+    echo ""
+}
+
+# Get user selection
+get_user_selection() {
+    local selection
+    read -p "${FGREEN}Enter your choice (0-9): ${RESET}" selection
+    echo "$selection"
+}
+
+# Process interactive selection
+process_interactive_selection() {
+    local choice="$1"
+    
+    case "$choice" in
+        1)  # Update only
+            SKIP_UPGRADE=1
+            SKIP_DIST=1
+            SKIP_AUTOREMOVE=1
+            SKIP_AUTOCLEAN=1
+            ;;
+        2)  # Upgrade only
+            SKIP_DIST=1
+            SKIP_AUTOREMOVE=1
+            SKIP_AUTOCLEAN=1
+            ;;
+        3)  # Dist-upgrade only
+            SKIP_AUTOREMOVE=1
+            SKIP_AUTOCLEAN=1
+            ;;
+        4)  # Autoremove only
+            SKIP_UPDATE=1
+            SKIP_UPGRADE=1
+            SKIP_DIST=1
+            SKIP_AUTOCLEAN=1
+            ;;
+        5)  # Autoclean only
+            SKIP_UPDATE=1
+            SKIP_UPGRADE=1
+            SKIP_DIST=1
+            SKIP_AUTOREMOVE=1
+            ;;
+        6)  # Create backup
+            CREATE_BACKUP=1
+            echo -e "${FGREEN}Backup will be created before any upgrades.${RESET}"
+            ;;
+        7)  # Run everything
+            echo -e "${FGREEN}Running all operations...${RESET}"
+            ;;
+        8)  # Custom selection
+            show_custom_menu
+            ;;
+        9)  # Show help
+            echo -e "$USAGE"
+            exit 0
+            ;;
+        0)  # Exit
+            echo -e "${FYELLOW}Alright, catch you later!${RESET}"
+            exit 0
+            ;;
+        *)
+            echo -e "${FRED}Invalid choice. Please try again.${RESET}"
+            return 1
+            ;;
+    esac
+    return 0
+}
+
+# Custom selection menu
+show_custom_menu() {
+    echo -e "${BBLUE}${FWHITE} === Custom Selection === ${RESET}"
+    echo -e "${FCYAN}Select which operations to perform:${RESET}"
+    echo ""
+    
+    # Update
+    read -p "${FYELLOW}Run apt-get update? (y/n): ${RESET}" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        SKIP_UPDATE=0
+    else
+        SKIP_UPDATE=1
+    fi
+    
+    # Upgrade
+    read -p "${FYELLOW}Run apt-get upgrade? (y/n): ${RESET}" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        SKIP_UPGRADE=0
+    else
+        SKIP_UPGRADE=1
+    fi
+    
+    # Dist-upgrade
+    read -p "${FYELLOW}Run apt-get dist-upgrade? (y/n): ${RESET}" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        SKIP_DIST=0
+    else
+        SKIP_DIST=1
+    fi
+    
+    # Autoclean
+    read -p "${FYELLOW}Run apt-get autoclean? (y/n): ${RESET}" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        SKIP_AUTOCLEAN=0
+    else
+        SKIP_AUTOCLEAN=1
+    fi
+    
+    # Autoremove
+    read -p "${FYELLOW}Run apt-get autoremove? (y/n): ${RESET}" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        SKIP_AUTOREMOVE=0
+    else
+        SKIP_AUTOREMOVE=1
+    fi
+    
+    # Backup
+    read -p "${FYELLOW}Create system backup before upgrades? (y/n): ${RESET}" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        CREATE_BACKUP=1
+    fi
+    
+    # Verbose mode
+    read -p "${FYELLOW}Enable verbose output? (y/n): ${RESET}" -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        VERBOSE=1
+    fi
+}
 
 # Logging functions
 log() {
@@ -139,6 +296,12 @@ check_distro() {
 
 # Parse command line arguments
 parse_args() {
+    # If no arguments provided, enable interactive mode
+    if [[ $# -eq 0 ]]; then
+        INTERACTIVE=1
+        return
+    fi
+    
     while [[ $# -gt 0 ]]; do
         case $1 in
             -u|--skip-update)
@@ -175,6 +338,10 @@ parse_args() {
                 ;;
             -q|--quiet)
                 QUIET=1
+                shift
+                ;;
+            -a|--auto)
+                AUTO_MODE=1
                 shift
                 ;;
             -h|--help)
@@ -297,6 +464,17 @@ main() {
     # Check prerequisites
     check_root
     check_distro
+    
+    # Handle interactive mode
+    if [[ $INTERACTIVE -eq 1 ]]; then
+        while true; do
+            show_interactive_menu
+            local choice=$(get_user_selection)
+            if process_interactive_selection "$choice"; then
+                break
+            fi
+        done
+    fi
     
     # Create backup if requested
     [[ $CREATE_BACKUP -eq 1 ]] && create_backup
