@@ -5,6 +5,7 @@
 # https://github.com/ehbush/debutaunt
 # Created by Anthony C. Bush in 2021 for Personal / Home Use
 # Enhanced with better error handling, logging, and features
+# Cross-distribution support for Debian and Red Hat based systems
 
 set -euo pipefail  # Exit on error, undefined vars, pipe failures
 
@@ -14,6 +15,11 @@ SCRIPT_VERSION="3.1.3"
 LOG_FILE="/tmp/debutaunt-$(date +%Y%m%d-%H%M%S).log"
 TEMP_OUTPUT="/tmp/debutaunt-output.txt"
 BACKUP_DIR="/var/backups/debutaunt"
+
+# Distribution and package manager detection
+DISTRO_TYPE=""
+PACKAGE_MANAGER=""
+PACKAGE_MANAGER_CMD=""
 
 # Color definitions with proper tput commands
 readonly FBLACK=$(tput setaf 0 2>/dev/null || echo "")
@@ -39,7 +45,7 @@ readonly BWHITE=$(tput setab 7 2>/dev/null || echo "")
 # Script information
 readonly INTRO="
 ${BBLUE}${FWHITE} Welcome to DebUtAUnT v${SCRIPT_VERSION}! ${RESET}
-${FCYAN}Debian Update & APT Unified Terminal${RESET}
+${FCYAN}Cross-Distribution Update & Package Manager Unified Terminal${RESET}
 
 ${FYELLOW}Features:${RESET}
 • System updates and upgrades
@@ -48,6 +54,7 @@ ${FYELLOW}Features:${RESET}
 • Comprehensive logging
 • Backup creation before major changes
 • Interactive mode for easy selection
+• Cross-distribution support (Debian, Red Hat & Arch based)
 
 ${FMAGENTA}https://github.com/ehbush/debutaunt${RESET}
 "
@@ -59,11 +66,11 @@ ${FYELLOW}Interactive Mode:${RESET}
   Run without options for interactive menu
 
 ${FYELLOW}Options:${RESET}
-  -u, --skip-update      Skip apt-get update
-  -g, --skip-upgrade     Skip apt-get upgrade
-  -d, --skip-dist        Skip apt-get dist-upgrade
-  -r, --skip-autoremove  Skip apt-get autoremove
-  -c, --skip-autoclean   Skip apt-get autoclean
+  -u, --skip-update      Skip package list update
+  -g, --skip-upgrade     Skip package upgrade
+  -d, --skip-dist        Skip distribution upgrade
+  -r, --skip-autoremove  Skip package cleanup
+  -c, --skip-autoclean   Skip cache cleanup
   -b, --create-backup    Create system backup before upgrades
   -l, --log-only         Only show log file location
   -v, --verbose          Verbose output
@@ -97,16 +104,99 @@ INTERACTIVE=0
 ERROR_COUNT=0
 WARNING_COUNT=0
 
+# Detect distribution and package manager
+detect_distribution() {
+    log "INFO" "Detecting distribution and package manager..."
+    
+    # Check for Debian-based systems
+    if [[ -f /etc/debian_version ]]; then
+        DISTRO_TYPE="debian"
+        if command -v apt-get >/dev/null 2>&1; then
+            PACKAGE_MANAGER="apt"
+            PACKAGE_MANAGER_CMD="apt-get"
+            log "INFO" "Detected Debian-based system with apt-get"
+        else
+            error_exit "Debian-based system detected but apt-get not found"
+        fi
+    # Check for Red Hat-based systems
+    elif [[ -f /etc/redhat-release ]] || [[ -f /etc/centos-release ]] || [[ -f /etc/fedora-release ]]; then
+        DISTRO_TYPE="redhat"
+        if command -v dnf >/dev/null 2>&1; then
+            PACKAGE_MANAGER="dnf"
+            PACKAGE_MANAGER_CMD="dnf"
+            log "INFO" "Detected Red Hat-based system with dnf"
+        elif command -v yum >/dev/null 2>&1; then
+            PACKAGE_MANAGER="yum"
+            PACKAGE_MANAGER_CMD="yum"
+            log "INFO" "Detected Red Hat-based system with yum"
+        else
+            error_exit "Red Hat-based system detected but neither dnf nor yum found"
+        fi
+    # Check for Arch-based systems
+    elif [[ -f /etc/arch-release ]] || [[ -f /etc/pacman.conf ]]; then
+        DISTRO_TYPE="arch"
+        if command -v pacman >/dev/null 2>&1; then
+            PACKAGE_MANAGER="pacman"
+            PACKAGE_MANAGER_CMD="pacman"
+            log "INFO" "Detected Arch-based system with pacman"
+        else
+            error_exit "Arch-based system detected but pacman not found"
+        fi
+    else
+        error_exit "Unsupported distribution. This script supports Debian, Red Hat, and Arch based systems only."
+    fi
+    
+    echo -e "${FGREEN}Detected: ${DISTRO_TYPE^}-based system with ${PACKAGE_MANAGER_CMD}${RESET}"
+}
+
+# Get package manager commands based on distribution
+get_package_commands() {
+    case "$PACKAGE_MANAGER" in
+        "apt")
+            UPDATE_CMD="apt-get update"
+            UPGRADE_CMD="apt-get upgrade -y"
+            DIST_UPGRADE_CMD="apt-get dist-upgrade -y"
+            AUTOCLEAN_CMD="apt-get autoclean"
+            AUTOREMOVE_CMD="apt-get autoremove -y"
+            ;;
+        "dnf")
+            UPDATE_CMD="dnf check-update"
+            UPGRADE_CMD="dnf upgrade -y"
+            DIST_UPGRADE_CMD="dnf upgrade -y"
+            AUTOCLEAN_CMD="dnf clean all"
+            AUTOREMOVE_CMD="dnf autoremove -y"
+            ;;
+        "yum")
+            UPDATE_CMD="yum check-update"
+            UPGRADE_CMD="yum update -y"
+            DIST_UPGRADE_CMD="yum update -y"
+            AUTOCLEAN_CMD="yum clean all"
+            AUTOREMOVE_CMD="yum autoremove -y"
+            ;;
+        "pacman")
+            UPDATE_CMD="pacman -Sy"
+            UPGRADE_CMD="pacman -Syu --noconfirm"
+            DIST_UPGRADE_CMD="pacman -Syu --noconfirm"
+            AUTOCLEAN_CMD="pacman -Sc --noconfirm"
+            AUTOREMOVE_CMD="pacman -Rns $(pacman -Qtdq) --noconfirm 2>/dev/null || true"
+            ;;
+        *)
+            error_exit "Unknown package manager: $PACKAGE_MANAGER"
+            ;;
+    esac
+}
+
 # Interactive menu function
 show_interactive_menu() {
     echo -e "${BBLUE}${FWHITE} === DebUtAUnT Interactive Menu === ${RESET}"
     echo -e "${FCYAN}What would you like to do today?${RESET}"
+    echo -e "${FYELLOW}System: ${DISTRO_TYPE^}-based with ${PACKAGE_MANAGER_CMD}${RESET}"
     echo ""
-    echo -e "${FYELLOW}1)${RESET} Update package lists (apt-get update)"
-    echo -e "${FYELLOW}2)${RESET} Upgrade packages (apt-get upgrade)"
-    echo -e "${FYELLOW}3)${RESET} Distribution upgrade (apt-get dist-upgrade)"
-    echo -e "${FYELLOW}4)${RESET} Clean up packages (apt-get autoremove)"
-    echo -e "${FYELLOW}5)${RESET} Clean package cache (apt-get autoclean)"
+    echo -e "${FYELLOW}1)${RESET} Update package lists (${PACKAGE_MANAGER_CMD} update/check-update)"
+    echo -e "${FYELLOW}2)${RESET} Upgrade packages (${PACKAGE_MANAGER_CMD} upgrade/update)"
+    echo -e "${FYELLOW}3)${RESET} Distribution upgrade (${PACKAGE_MANAGER_CMD} dist-upgrade/upgrade)"
+    echo -e "${FYELLOW}4)${RESET} Clean up packages (${PACKAGE_MANAGER_CMD} autoremove)"
+    echo -e "${FYELLOW}5)${RESET} Clean package cache (${PACKAGE_MANAGER_CMD} autoclean/clean)"
     echo -e "${FYELLOW}6)${RESET} Create system backup before upgrades"
     echo -e "${FYELLOW}7)${RESET} Run everything (recommended)"
     echo -e "${FYELLOW}8)${RESET} Custom selection"
@@ -187,7 +277,7 @@ show_custom_menu() {
     echo ""
     
     # Update
-    read -p "${FYELLOW}Run apt-get update? (y/n): ${RESET}" -n 1 -r
+    read -p "${FYELLOW}Run ${PACKAGE_MANAGER_CMD} update/check-update? (y/n): ${RESET}" -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         SKIP_UPDATE=0
@@ -196,7 +286,7 @@ show_custom_menu() {
     fi
     
     # Upgrade
-    read -p "${FYELLOW}Run apt-get upgrade? (y/n): ${RESET}" -n 1 -r
+    read -p "${FYELLOW}Run ${PACKAGE_MANAGER_CMD} upgrade/update? (y/n): ${RESET}" -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         SKIP_UPGRADE=0
@@ -205,7 +295,7 @@ show_custom_menu() {
     fi
     
     # Dist-upgrade
-    read -p "${FYELLOW}Run apt-get dist-upgrade? (y/n): ${RESET}" -n 1 -r
+    read -p "${FYELLOW}Run ${PACKAGE_MANAGER_CMD} dist-upgrade/upgrade? (y/n): ${RESET}" -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         SKIP_DIST=0
@@ -214,7 +304,7 @@ show_custom_menu() {
     fi
     
     # Autoclean
-    read -p "${FYELLOW}Run apt-get autoclean? (y/n): ${RESET}" -n 1 -r
+    read -p "${FYELLOW}Run ${PACKAGE_MANAGER_CMD} autoclean/clean? (y/n): ${RESET}" -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         SKIP_AUTOCLEAN=0
@@ -223,7 +313,7 @@ show_custom_menu() {
     fi
     
     # Autoremove
-    read -p "${FYELLOW}Run apt-get autoremove? (y/n): ${RESET}" -n 1 -r
+    read -p "${FYELLOW}Run ${PACKAGE_MANAGER_CMD} autoremove? (y/n): ${RESET}" -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         SKIP_AUTOREMOVE=0
@@ -284,13 +374,6 @@ check_root() {
     Better luck next time!${RESET}
     "
         exit 1
-    fi
-}
-
-# Check if running on Debian/Ubuntu
-check_distro() {
-    if [[ ! -f /etc/debian_version ]]; then
-        error_exit "This script is designed for Debian-based distributions only"
     fi
 }
 
@@ -366,19 +449,35 @@ create_backup() {
     # Create backup directory
     mkdir -p "$BACKUP_DIR"
     
-    # Create package list backup
+    # Create package list backup based on distribution
     local backup_file="$BACKUP_DIR/package-list-$(date +%Y%m%d-%H%M%S).txt"
-    dpkg --get-selections > "$backup_file" 2>/dev/null || log "WARN" "Failed to create package list backup"
     
-    # Create sources list backup
-    local sources_backup="$BACKUP_DIR/sources-$(date +%Y%m%d-%H%M%S).tar.gz"
-    tar -czf "$sources_backup" /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null || log "WARN" "Failed to create sources backup"
+    case "$PACKAGE_MANAGER" in
+        "apt")
+            dpkg --get-selections > "$backup_file" 2>/dev/null || log "WARN" "Failed to create package list backup"
+            # Create sources list backup
+            local sources_backup="$BACKUP_DIR/sources-$(date +%Y%m%d-%H%M%S).tar.gz"
+            tar -czf "$sources_backup" /etc/apt/sources.list.d/ /etc/apt/sources.list 2>/dev/null || log "WARN" "Failed to create sources backup"
+            ;;
+        "dnf"|"yum")
+            rpm -qa > "$backup_file" 2>/dev/null || log "WARN" "Failed to create package list backup"
+            # Create repo backup
+            local repo_backup="$BACKUP_DIR/repos-$(date +%Y%m%d-%H%M%S).tar.gz"
+            tar -czf "$repo_backup" /etc/yum.repos.d/ 2>/dev/null || log "WARN" "Failed to create repo backup"
+            ;;
+        "pacman")
+            pacman -Qe > "$backup_file" 2>/dev/null || log "WARN" "Failed to create package list backup"
+            # Create pacman config backup
+            local pacman_config_backup="$BACKUP_DIR/pacman-$(date +%Y%m%d-%H%M%S).conf"
+            cp /etc/pacman.conf "$pacman_config_backup" 2>/dev/null || log "WARN" "Failed to create pacman config backup"
+            ;;
+    esac
     
-    log "INFO" "Backup created: $backup_file, $sources_backup"
+    log "INFO" "Backup created: $backup_file"
 }
 
-# Execute apt command with error handling
-execute_apt() {
+# Execute package manager command with error handling
+execute_package_command() {
     local operation="$1"
     local command="$2"
     local description="$3"
@@ -463,7 +562,12 @@ main() {
     
     # Check prerequisites
     check_root
-    check_distro
+    
+    # Detect distribution and package manager
+    detect_distribution
+    
+    # Get package manager commands
+    get_package_commands
     
     # Handle interactive mode
     if [[ $INTERACTIVE -eq 1 ]]; then
@@ -487,11 +591,11 @@ main() {
     > "$TEMP_OUTPUT"
     
     # Execute operations
-    [[ $SKIP_UPDATE -eq 0 ]] && execute_apt "update" "apt-get update" "Executing APT Update"
-    [[ $SKIP_UPGRADE -eq 0 ]] && execute_apt "upgrade" "apt-get upgrade -y" "Execute APT Upgrade"
-    [[ $SKIP_DIST -eq 0 ]] && execute_apt "dist-upgrade" "apt-get dist-upgrade -y" "Executing Dist-Upgrade"
-    [[ $SKIP_AUTOCLEAN -eq 0 ]] && execute_apt "autoclean" "apt-get autoclean" "Executing APT Autoclean"
-    [[ $SKIP_AUTOREMOVE -eq 0 ]] && execute_apt "autoremove" "apt-get autoremove -y" "Executing APT Autoremove"
+    [[ $SKIP_UPDATE -eq 0 ]] && execute_package_command "update" "$UPDATE_CMD" "Executing ${PACKAGE_MANAGER_CMD} Update"
+    [[ $SKIP_UPGRADE -eq 0 ]] && execute_package_command "upgrade" "$UPGRADE_CMD" "Execute ${PACKAGE_MANAGER_CMD} Upgrade"
+    [[ $SKIP_DIST -eq 0 ]] && execute_package_command "dist-upgrade" "$DIST_UPGRADE_CMD" "Executing ${PACKAGE_MANAGER_CMD} Dist-Upgrade"
+    [[ $SKIP_AUTOCLEAN -eq 0 ]] && execute_package_command "autoclean" "$AUTOCLEAN_CMD" "Executing ${PACKAGE_MANAGER_CMD} Autoclean"
+    [[ $SKIP_AUTOREMOVE -eq 0 ]] && execute_package_command "autoremove" "$AUTOREMOVE_CMD" "Executing ${PACKAGE_MANAGER_CMD} Autoremove"
     
     # Add the original completion message for dist-upgrade
     if [[ $SKIP_DIST -eq 0 ]]; then
@@ -506,7 +610,7 @@ ${FGREEN}#############################
     if [[ $SKIP_AUTOREMOVE -eq 0 ]]; then
         echo -e "
 ${FGREEN}#############################
-#     Great Success! APT Autoremove has completed!     #
+#     Great Success! ${PACKAGE_MANAGER_CMD} Autoremove has completed!     #
 #############################${RESET}
 "
     fi
@@ -521,6 +625,8 @@ ${FGREEN}#############################
         
         # Summary
         echo -e "\n${BGREEN}${FWHITE} === Summary === ${RESET}"
+        echo -e "Distribution: ${FCYAN}${DISTRO_TYPE^}-based${RESET}"
+        echo -e "Package Manager: ${FCYAN}${PACKAGE_MANAGER_CMD}${RESET}"
         echo -e "Errors: ${FRED}$ERROR_COUNT${RESET}"
         echo -e "Warnings: ${FYELLOW}$WARNING_COUNT${RESET}"
         echo -e "Log file: ${FCYAN}$LOG_FILE${RESET}"
