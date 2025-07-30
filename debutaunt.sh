@@ -122,7 +122,11 @@ cleanup() {
 # Check if running as root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
-        error_exit "This script must be run as root (use sudo)"
+        echo "${BRED}${FWHITE}
+    Uh-Oh! Looks like someone doesn't have sudo permissions...
+    Better luck next time!${RESET}
+    "
+        exit 1
     fi
 }
 
@@ -215,7 +219,11 @@ execute_apt() {
     log "INFO" "Executing: $description"
     
     if [[ $QUIET -eq 0 ]]; then
-        echo -e "${BBLUE}${FWHITE} $description ${RESET}"
+        echo -e "
+${FGREEN}#############################
+#     $description   #
+#############################${RESET}
+"
     fi
     
     # Execute command and capture output
@@ -243,7 +251,11 @@ analyze_output() {
     WARNING_COUNT=$warnings
     
     # Display important messages
-    echo -e "\n${FYELLOW}=== Analysis Results ===${RESET}"
+    echo -e "
+${FGREEN}#####################################################
+#   Alert, Alert! Reading output of the updates & upgrades, to identify any potential issues...   #
+#####################################################${RESET}
+"
     
     # Show warnings
     if [[ $warnings -gt 0 ]]; then
@@ -268,6 +280,13 @@ analyze_output() {
     if grep -qi "security" "$TEMP_OUTPUT"; then
         echo -e "${FGREEN}Security updates were applied${RESET}"
     fi
+    
+    # Show the original fun cleanup message
+    echo -e "
+${FGREEN}#############################
+#    Cheerio Mate! It's now time to clean up the temp files we created...uno momento, por favor!    #
+#############################${RESET}
+"
 }
 
 # Main execution function
@@ -290,27 +309,62 @@ main() {
     > "$TEMP_OUTPUT"
     
     # Execute operations
-    [[ $SKIP_UPDATE -eq 0 ]] && execute_apt "update" "apt-get update" "APT Update"
-    [[ $SKIP_UPGRADE -eq 0 ]] && execute_apt "upgrade" "apt-get upgrade -y" "APT Upgrade"
-    [[ $SKIP_DIST -eq 0 ]] && execute_apt "dist-upgrade" "apt-get dist-upgrade -y" "APT Dist-Upgrade"
-    [[ $SKIP_AUTOCLEAN -eq 0 ]] && execute_apt "autoclean" "apt-get autoclean" "APT Autoclean"
-    [[ $SKIP_AUTOREMOVE -eq 0 ]] && execute_apt "autoremove" "apt-get autoremove -y" "APT Autoremove"
+    [[ $SKIP_UPDATE -eq 0 ]] && execute_apt "update" "apt-get update" "Executing APT Update"
+    [[ $SKIP_UPGRADE -eq 0 ]] && execute_apt "upgrade" "apt-get upgrade -y" "Execute APT Upgrade"
+    [[ $SKIP_DIST -eq 0 ]] && execute_apt "dist-upgrade" "apt-get dist-upgrade -y" "Executing Dist-Upgrade"
+    [[ $SKIP_AUTOCLEAN -eq 0 ]] && execute_apt "autoclean" "apt-get autoclean" "Executing APT Autoclean"
+    [[ $SKIP_AUTOREMOVE -eq 0 ]] && execute_apt "autoremove" "apt-get autoremove -y" "Executing APT Autoremove"
     
-    # Analyze results
-    analyze_output
+    # Add the original completion message for dist-upgrade
+    if [[ $SKIP_DIST -eq 0 ]]; then
+        echo -e "
+${FGREEN}#############################
+#   Dist Upgrade Complete   #
+#############################${RESET}
+"
+    fi
     
-    # Summary
-    echo -e "\n${BGREEN}${FWHITE} === Summary === ${RESET}"
-    echo -e "Errors: ${FRED}$ERROR_COUNT${RESET}"
-    echo -e "Warnings: ${FYELLOW}$WARNING_COUNT${RESET}"
-    echo -e "Log file: ${FCYAN}$LOG_FILE${RESET}"
+    # Add the original completion message for autoremove
+    if [[ $SKIP_AUTOREMOVE -eq 0 ]]; then
+        echo -e "
+${FGREEN}#############################
+#     Great Success! APT Autoremove has completed!     #
+#############################${RESET}
+"
+    fi
     
-    if [[ $ERROR_COUNT -eq 0 ]]; then
-        log "INFO" "All operations completed successfully"
-        echo -e "${FGREEN}✓ System update completed successfully!${RESET}"
+    # Check if we have any output to analyze
+    if [[ -f "$TEMP_OUTPUT" ]]; then
+        # Analyze results
+        analyze_output
+        
+        # Clean up temp file
+        rm "$TEMP_OUTPUT"
+        
+        # Summary
+        echo -e "\n${BGREEN}${FWHITE} === Summary === ${RESET}"
+        echo -e "Errors: ${FRED}$ERROR_COUNT${RESET}"
+        echo -e "Warnings: ${FYELLOW}$WARNING_COUNT${RESET}"
+        echo -e "Log file: ${FCYAN}$LOG_FILE${RESET}"
+        
+        if [[ $ERROR_COUNT -eq 0 ]]; then
+            log "INFO" "All operations completed successfully"
+            echo -e "
+${FGREEN}#############################
+#     Everything looks good from my side. Best of luck in your travels!    #
+#############################${RESET}
+"
+        else
+            log "WARN" "Some operations had errors"
+            echo -e "${FYELLOW}⚠ System update completed with some errors${RESET}"
+        fi
     else
-        log "WARN" "Some operations had errors"
-        echo -e "${FYELLOW}⚠ System update completed with some errors${RESET}"
+        # Original fun message when no operations were performed
+        echo -e "
+${FGREEN}#########################################################
+# Why you ain't choose any options tho? You tryna start beef? Nvm, you ain't even worth it...Exiting. #
+#########################################################${RESET}
+"
     fi
     
     # Cleanup
